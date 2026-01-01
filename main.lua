@@ -1,10 +1,9 @@
 --[[
-    TITANIUM V4 - REDEMPTION EDITION
-    "The one that actually works and looks like iOS"
-    
-    Fixed: Font Crash (attempt to index nil)
-    Fixed: Flat/Ugly Design (Added Shadows & Blur emulation)
-    Added: Built-in Icons
+    TITANIUM V4 - FIXED & OPTIMIZED
+    Fixed: CanvasGroup Rendering Bug (Invisible UI on some executors)
+    Fixed: Sidebar Divider Position
+    Added: Dropdown Function (Missing from original)
+    Optimized: task.spawn usage
 ]]
 
 local InputService = game:GetService("UserInputService")
@@ -21,14 +20,14 @@ local Mouse = Player:GetMouse()
 local Titanium = {
     Settings = {
         Colors = {
-            Main = Color3.fromRGB(28, 28, 30), -- iOS Dark Mode Background
-            Sidebar = Color3.fromRGB(36, 36, 38), -- Slightly lighter
-            Element = Color3.fromRGB(44, 44, 46), -- Element BG
+            Main = Color3.fromRGB(28, 28, 30),
+            Sidebar = Color3.fromRGB(36, 36, 38),
+            Element = Color3.fromRGB(44, 44, 46),
             Text = Color3.fromRGB(255, 255, 255),
             TextDim = Color3.fromRGB(160, 160, 165),
             Stroke = Color3.fromRGB(60, 60, 65),
             Divider = Color3.fromRGB(50, 50, 55),
-            Accent = Color3.fromRGB(10, 132, 255), -- iOS Blue
+            Accent = Color3.fromRGB(10, 132, 255),
             Green = Color3.fromRGB(48, 209, 88),
             Red = Color3.fromRGB(255, 69, 58)
         },
@@ -40,7 +39,7 @@ local Titanium = {
     }
 }
 
--- [[ ICONS (LUCIDE) ]]
+-- [[ ICONS ]]
 local Icons = {
     Home = "rbxassetid://6031091009",
     Settings = "rbxassetid://6031280882",
@@ -48,7 +47,8 @@ local Icons = {
     Combat = "rbxassetid://6031068428",
     Visuals = "rbxassetid://6031079024",
     List = "rbxassetid://6031094670",
-    Search = "rbxassetid://6031154871"
+    Search = "rbxassetid://6031154871",
+    Arrow = "rbxassetid://6031091004" -- Added generic arrow
 }
 
 -- [[ MODULE: UTILITY ]]
@@ -66,6 +66,7 @@ function Utility:Create(class, props, children)
 end
 
 function Utility:AddShadow(frame, transparency)
+    if not frame then return end
     local Shadow = Utility:Create("ImageLabel", {
         Name = "Shadow",
         AnchorPoint = Vector2.new(0.5, 0.5),
@@ -84,7 +85,8 @@ function Utility:AddShadow(frame, transparency)
 end
 
 function Utility:Ripple(obj)
-    spawn(function()
+    if not obj then return end
+    task.spawn(function()
         local Ripple = Utility:Create("ImageLabel", {
             Name = "Ripple",
             Parent = obj,
@@ -97,7 +99,8 @@ function Utility:Ripple(obj)
         })
         
         local Size = math.max(obj.AbsoluteSize.X, obj.AbsoluteSize.Y) * 1.5
-        -- Calculate position relative to object
+        if Size == 0 then Size = 100 end -- Prevent errors if size is 0
+        
         local relativeX = Mouse.X - obj.AbsolutePosition.X
         local relativeY = Mouse.Y - obj.AbsolutePosition.Y
         
@@ -114,35 +117,20 @@ function Utility:Ripple(obj)
     end)
 end
 
--- [[ MODULE: PHYSICS ]]
-local Spring = {}
-Spring.__index = Spring
-
-function Spring.new(freq, pos)
-    local self = setmetatable({}, Spring)
-    self.f = freq
-    self.p = pos
-    self.v = pos * 0
-    return self
-end
-
-function Spring:Update(dt, goal)
-    local f = self.f * 2 * math.pi
-    local p0 = self.p
-    local v0 = self.v
-    local offset = goal - p0
-    local decay = math.exp(-f * dt)
-    local p1 = goal + (v0 * dt - offset * (f * dt + 1)) * decay
-    local v1 = (f * dt * (offset * f - v0) + v0) * decay
-    self.p = p1
-    self.v = v1
-    return p1
-end
-
 -- [[ MAIN UI ]]
 function Titanium:Window(Config)
     local Title = Config.Name or "Titanium V4"
     local IsMobile = InputService.TouchEnabled
+    
+    -- Clean up old GUI
+    for _, gui in pairs(CoreGui:GetChildren()) do
+        if gui.Name:match("Titanium_") then gui:Destroy() end
+    end
+    if Player:FindFirstChild("PlayerGui") then
+        for _, gui in pairs(Player.PlayerGui:GetChildren()) do
+            if gui.Name:match("Titanium_") then gui:Destroy() end
+        end
+    end
     
     local GUI = Utility:Create("ScreenGui", {
         Name = "Titanium_" .. HttpService:GenerateGUID(false),
@@ -161,24 +149,22 @@ function Titanium:Window(Config)
     end
 
     -- // MAIN FRAME //
-    -- Using CanvasGroup for that crisp Corner Clipping
-    local Main = Utility:Create("CanvasGroup", {
+    -- Changed from CanvasGroup to Frame for better stability
+    local Main = Utility:Create("Frame", {
         Name = "Main",
         Size = UDim2.new(0, 650, 0, 420),
         Position = UDim2.new(0.5, -325, 0.5, -210),
         BackgroundColor3 = Titanium.Settings.Colors.Main,
         BorderSizePixel = 0,
-        GroupTransparency = 0,
+        ClipsDescendants = true, -- Replaces CanvasGroup functionality
         Parent = GUI
     })
     
-    -- Mobile Sizing
     if IsMobile then
         Main.Size = UDim2.new(0, 500, 0, 320)
         Main.Position = UDim2.new(0.5, -250, 0.5, -160)
     end
     
-    -- Styling
     Utility:Create("UICorner", {CornerRadius = UDim.new(0, 14), Parent = Main})
     Utility:Create("UIStroke", {
         Color = Titanium.Settings.Colors.Stroke, 
@@ -188,7 +174,6 @@ function Titanium:Window(Config)
         Parent = Main
     })
     
-    -- Shadow (Behind Main)
     local MainShadow = Utility:Create("Frame", {
         Name = "ShadowHolder",
         BackgroundTransparency = 1,
@@ -208,16 +193,14 @@ function Titanium:Window(Config)
         Parent = Main
     })
     
-    -- Sidebar Divider
     Utility:Create("Frame", {
         Size = UDim2.new(0, 1, 1, 0),
-        Position = UDim2.new(1, 0, 0, 0),
+        Position = UDim2.new(1, -1, 0, 0), -- Fixed position
         BackgroundColor3 = Titanium.Settings.Colors.Divider,
         BorderSizePixel = 0,
         Parent = Sidebar
     })
     
-    -- App Title
     local AppTitle = Utility:Create("TextLabel", {
         Text = Title,
         Font = Titanium.Settings.Font.Bold,
@@ -307,14 +290,15 @@ function Titanium:Window(Config)
         end)
     end
 
-    -- // NOTIFICATION SYSTEM //
+    -- // NOTIFICATION //
     local NotifyHolder = Utility:Create("Frame", {
         Size = UDim2.new(0, 280, 1, 0),
         Position = UDim2.new(1, -290, 0, 20),
         BackgroundTransparency = 1,
+        ZIndex = 100,
         Parent = GUI
     })
-    local NotifyLayout = Utility:Create("UIListLayout", {
+    Utility:Create("UIListLayout", {
         Padding = UDim.new(0, 8),
         VerticalAlignment = Enum.VerticalAlignment.Top,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -323,7 +307,7 @@ function Titanium:Window(Config)
 
     function Titanium:Notify(data)
         local NFrame = Utility:Create("Frame", {
-            Size = UDim2.new(1, 0, 0, 60), -- Starts small
+            Size = UDim2.new(1, 0, 0, 60),
             Position = UDim2.new(1, 20, 0, 0),
             BackgroundColor3 = Titanium.Settings.Colors.Sidebar,
             BorderSizePixel = 0,
@@ -333,7 +317,7 @@ function Titanium:Window(Config)
         Utility:Create("UIStroke", {Color = Titanium.Settings.Colors.Stroke, Thickness = 1, Parent = NFrame})
         Utility:AddShadow(NFrame, 0.2)
         
-        local NTit = Utility:Create("TextLabel", {
+        Utility:Create("TextLabel", {
             Text = data.Title or "Alert",
             Font = Titanium.Settings.Font.Bold,
             TextSize = 14,
@@ -345,7 +329,7 @@ function Titanium:Window(Config)
             Parent = NFrame
         })
         
-        local NDesc = Utility:Create("TextLabel", {
+        Utility:Create("TextLabel", {
             Text = data.Content or "",
             Font = Titanium.Settings.Font.Medium,
             TextSize = 12,
@@ -367,24 +351,22 @@ function Titanium:Window(Config)
         end)
     end
 
-    -- // TABS LOGIC //
+    -- // TABS //
     local Tabs = {}
     local FirstTab = true
-    
     local Functions = {}
     
     function Functions:Tab(Name, Icon)
         local TabFuncs = {}
         
-        -- Tab Button
         local TabBtn = Utility:Create("TextButton", {
             Size = UDim2.new(0, 150, 0, 36),
-            BackgroundColor3 = Titanium.Settings.Colors.Sidebar, -- start transparent-ish
+            BackgroundColor3 = Titanium.Settings.Colors.Sidebar,
             BackgroundTransparency = 1,
             Text = "",
             Parent = TabContainer
         })
-        local BtnCorner = Utility:Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = TabBtn})
+        Utility:Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = TabBtn})
         
         local TabIcon = Utility:Create("ImageLabel", {
             Size = UDim2.new(0, 18, 0, 18),
@@ -407,7 +389,6 @@ function Titanium:Window(Config)
             Parent = TabBtn
         })
         
-        -- Page
         local Page = Utility:Create("ScrollingFrame", {
             Size = UDim2.new(1, -24, 1, -24),
             Position = UDim2.new(0, 12, 0, 12),
@@ -427,7 +408,6 @@ function Titanium:Window(Config)
             Page.CanvasSize = UDim2.new(0, 0, 0, PageLayout.AbsoluteContentSize.Y + 20)
         end)
         
-        -- Activation Logic
         local function Activate()
             for _, t in pairs(Tabs) do
                 TweenService:Create(t.Text, TweenInfo.new(0.2), {TextColor3 = Titanium.Settings.Colors.TextDim}):Play()
@@ -480,7 +460,7 @@ function Titanium:Window(Config)
             })
             Utility:Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = BtnFrame})
             
-            local Label = Utility:Create("TextLabel", {
+            Utility:Create("TextLabel", {
                 Text = text,
                 Font = Titanium.Settings.Font.Medium,
                 TextSize = 13,
@@ -500,7 +480,6 @@ function Titanium:Window(Config)
             Trigger.MouseButton1Click:Connect(function()
                 Utility:Ripple(BtnFrame)
                 callback()
-                -- Bounce Effect
                 local t1 = TweenService:Create(BtnFrame, TweenInfo.new(0.1), {Size = UDim2.new(1, -4, 0, 36)})
                 t1:Play()
                 t1.Completed:Wait()
@@ -518,7 +497,7 @@ function Titanium:Window(Config)
             })
             Utility:Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = TogFrame})
             
-            local Label = Utility:Create("TextLabel", {
+            Utility:Create("TextLabel", {
                 Text = text,
                 Font = Titanium.Settings.Font.Medium,
                 TextSize = 13,
@@ -555,7 +534,6 @@ function Titanium:Window(Config)
             
             Trigger.MouseButton1Click:Connect(function()
                 toggled = not toggled
-                
                 local TargetPos = toggled and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
                 local TargetCol = toggled and Titanium.Settings.Colors.Green or Titanium.Settings.Colors.Stroke
                 
@@ -565,7 +543,7 @@ function Titanium:Window(Config)
                 callback(toggled)
             end)
         end
-        
+
         function TabFuncs:Slider(text, min, max, default, callback)
             local value = default or min
             
@@ -576,7 +554,7 @@ function Titanium:Window(Config)
             })
             Utility:Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = SFrame})
             
-            local Label = Utility:Create("TextLabel", {
+            Utility:Create("TextLabel", {
                 Text = text,
                 Font = Titanium.Settings.Font.Medium,
                 TextSize = 13,
@@ -662,11 +640,124 @@ function Titanium:Window(Config)
                 end
             end)
         end
+
+        -- // NEW: DROPDOWN (Missing from original code) //
+        function TabFuncs:Dropdown(text, options, callback)
+            local isDropped = false
+            local currentOption = options[1] or "Select"
+            
+            local DropFrame = Utility:Create("Frame", {
+                Size = UDim2.new(1, 0, 0, 40),
+                BackgroundColor3 = Titanium.Settings.Colors.Element,
+                ClipsDescendants = true,
+                Parent = Page
+            })
+            Utility:Create("UICorner", {CornerRadius = UDim.new(0, 8), Parent = DropFrame})
+            
+            Utility:Create("TextLabel", {
+                Text = text,
+                Font = Titanium.Settings.Font.Medium,
+                TextSize = 13,
+                TextColor3 = Titanium.Settings.Colors.Text,
+                Size = UDim2.new(0.5, 0, 0, 40),
+                Position = UDim2.new(0, 12, 0, 0),
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = DropFrame
+            })
+
+            local SelectedLabel = Utility:Create("TextLabel", {
+                Text = currentOption,
+                Font = Titanium.Settings.Font.Bold,
+                TextSize = 13,
+                TextColor3 = Titanium.Settings.Colors.TextDim,
+                Size = UDim2.new(0.5, -30, 0, 40),
+                Position = UDim2.new(0.5, -5, 0, 0),
+                BackgroundTransparency = 1,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                Parent = DropFrame
+            })
+
+            local Arrow = Utility:Create("ImageLabel", {
+                Size = UDim2.new(0, 20, 0, 20),
+                Position = UDim2.new(1, -26, 0.5, -10),
+                BackgroundTransparency = 1,
+                Image = Icons.Arrow, -- Assuming generic arrow icon
+                ImageColor3 = Titanium.Settings.Colors.TextDim,
+                Parent = DropFrame
+            })
+
+            local Trigger = Utility:Create("TextButton", {
+                Size = UDim2.new(1, 0, 0, 40),
+                BackgroundTransparency = 1,
+                Text = "",
+                Parent = DropFrame
+            })
+
+            local ItemHolder = Utility:Create("Frame", {
+                Size = UDim2.new(1, -24, 0, 0),
+                Position = UDim2.new(0, 12, 0, 44),
+                BackgroundTransparency = 1,
+                Parent = DropFrame
+            })
+            local ItemLayout = Utility:Create("UIListLayout", {
+                Padding = UDim.new(0, 4),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Parent = ItemHolder
+            })
+
+            -- Generate Items
+            for _, opt in pairs(options) do
+                local ItemBtn = Utility:Create("TextButton", {
+                    Size = UDim2.new(1, 0, 0, 30),
+                    BackgroundColor3 = Titanium.Settings.Colors.Sidebar,
+                    Text = opt,
+                    Font = Titanium.Settings.Font.Medium,
+                    TextColor3 = Titanium.Settings.Colors.TextDim,
+                    TextSize = 12,
+                    Parent = ItemHolder
+                })
+                Utility:Create("UICorner", {CornerRadius = UDim.new(0, 6), Parent = ItemBtn})
+                
+                ItemBtn.MouseButton1Click:Connect(function()
+                    currentOption = opt
+                    SelectedLabel.Text = opt
+                    callback(opt)
+                    -- Close
+                    isDropped = false
+                    TweenService:Create(DropFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 40)}):Play()
+                    TweenService:Create(Arrow, TweenInfo.new(0.3), {Rotation = 0}):Play()
+                end)
+            end
+
+            Trigger.MouseButton1Click:Connect(function()
+                isDropped = not isDropped
+                local totalHeight = ItemLayout.AbsoluteContentSize.Y + 54
+                local targetSize = isDropped and UDim2.new(1, 0, 0, totalHeight) or UDim2.new(1, 0, 0, 40)
+                local targetRot = isDropped and 180 or 0
+                
+                TweenService:Create(DropFrame, TweenInfo.new(0.3), {Size = targetSize}):Play()
+                TweenService:Create(Arrow, TweenInfo.new(0.3), {Rotation = targetRot}):Play()
+            end)
+        end
         
         return TabFuncs
     end
 
     return Functions
 end
+
+-- [[ EXAMPLE USAGE ]]
+-- Un-comment the section below to test the script directly!
+
+-- local Lib = Titanium
+-- local Win = Lib:Window({Name = "Titanium iOS | V3.0 Ultimate"})
+-- local MainTab = Win:Tab("Combat", nil) -- Icon optional
+
+-- MainTab:Section("Aimbot")
+-- MainTab:Toggle("Silent Aim", false, function(v) print("Silent:", v) end)
+-- MainTab:Toggle("Triggerbot", true, function(v) print("Trigger:", v) end)
+-- MainTab:Dropdown("Aim Part", {"Head", "Torso", "Random"}, function(v) print("Selected:", v) end)
+-- MainTab:Button("Force Reset", function() print("Reset") end)
 
 return Titanium
