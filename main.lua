@@ -1,13 +1,4 @@
---[[
-    TITANIUM V4 - REDEMPTION EDITION (FIXED & IMPROVED)
-    "The one that actually works and looks like iOS"
 
-    Changes:
-    - Fixed Title overlap: Title text now truncates and scales to avoid overlapping with tabs.
-    - Fixed Corner Rounding: Main frame now correctly clips descendants, ensuring rounded corners.
-    - Fixed Shadow: Shadow is now rounded to match the frame and is less intense.
-    - Improved Mobile Support: Better positioning and sizing for mobile devices.
-]]
 
 local InputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
